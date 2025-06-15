@@ -47,8 +47,8 @@ import com.android.settingslib.search.SearchIndexable;
 
 import com.crdroid.settings.fragments.misc.SensorBlock;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import org.w3c.dom.*;
+import javax.xml.parsers.*;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
@@ -295,32 +295,109 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
     }
 
     private void handleKeyboxImport(Uri uri) {
-        try (InputStream in = requireContext().getContentResolver().openInputStream(uri);
-             OutputStream out = new FileOutputStream(KEYBOX_PATH)) {
-            byte[] buf = new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
+        try (InputStream in = requireContext().getContentResolver().openInputStream(uri)) {
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(in);
+            doc.getDocumentElement().normalize();
+
+            Element root = doc.getDocumentElement();
+            if (root == null || !"AndroidAttestation".equals(root.getNodeName())) {
+                Log.e(TAG, "Invalid root element. Expected <AndroidAttestation>");
+                showToast(R.string.import_failed);
+                return;
             }
-            setPermissions(KEYBOX_PATH);
+
+            NodeList keyboxes = doc.getElementsByTagName("Keybox");
+            if (keyboxes.getLength() == 0) {
+                Log.e(TAG, "No <Keybox> element found in XML.");
+                showToast(R.string.import_failed);
+                return;
+            }
+
+            JSONObject keyboxJson = new JSONObject();
+
+            for (int i = 0; i < keyboxes.getLength(); i++) {
+                Element keyboxElement = (Element) keyboxes.item(i);
+                NodeList keys = keyboxElement.getElementsByTagName("Key");
+
+                if (keys.getLength() == 0) {
+                    Log.w(TAG, "No <Key> entries in <Keybox>. Skipping.");
+                    continue;
+                }
+
+                for (int j = 0; j < keys.getLength(); j++) {
+                    Element keyElement = (Element) keys.item(j);
+                    String algorithm = keyElement.getAttribute("algorithm").toUpperCase();
+                    if (TextUtils.isEmpty(algorithm)) {
+                        Log.w(TAG, "Missing 'algorithm' attribute in <Key>. Skipping.");
+                        continue;
+                    }
+
+                    if (algorithm.equals("ECDSA")) algorithm = "EC";
+
+                    Element privKeyElem = (Element) keyElement.getElementsByTagName("PrivateKey").item(0);
+                    if (privKeyElem == null) {
+                        Log.w(TAG, "No <PrivateKey> found for algorithm " + algorithm + ". Skipping.");
+                        continue;
+                    }
+
+                    String privKeyRaw = getRawText(privKeyElem);
+                    String privKey = extractBase64FromPEM(privKeyRaw);
+                    if (TextUtils.isEmpty(privKey)) {
+                        Log.w(TAG, "Empty private key for " + algorithm + ". Skipping.");
+                        continue;
+                    }
+                    keyboxJson.put(algorithm + ".PRIV", privKey);
+
+                    NodeList certList = keyElement.getElementsByTagName("Certificate");
+                    for (int k = 0; k < certList.getLength(); k++) {
+                        Element certElem = (Element) certList.item(k);
+                        String certRaw = getRawText(certElem);
+                        String cert = extractBase64FromPEM(certRaw);
+                        if (!TextUtils.isEmpty(cert)) {
+                            keyboxJson.put(algorithm + ".CERT_" + (k + 1), cert);
+                        } else {
+                            Log.w(TAG, "Empty certificate #" + (k + 1) + " for " + algorithm);
+                        }
+                    }
+                }
+            }
+
+            if (keyboxJson.length() == 0) {
+                Log.e(TAG, "Parsed keybox is empty. Import failed.");
+                showToast(R.string.import_failed);
+                return;
+            }
+
+            Settings.System.putString(requireContext().getContentResolver(),
+                    "custom_keybox_data", keyboxJson.toString());
+
             showToast(R.string.import_success);
             SystemRestartUtils.showSystemRestartDialog(getContext());
+
         } catch (Exception e) {
             Log.e(TAG, "Keybox import failed", e);
             showToast(R.string.import_failed);
         }
     }
 
-    private void setPermissions(String path) {
-        try {
-            File file = new File(path);
-            file.setReadable(false, false);
-            file.setWritable(false, false);
-            file.setReadable(true, true);
-            file.setWritable(true, true);
-        } catch (Exception e) {
-            Log.e(TAG, "Permission set failed", e);
+    private String getRawText(Element element) {
+        StringBuilder builder = new StringBuilder();
+        NodeList children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node node = children.item(i);
+            if (node.getNodeType() == Node.TEXT_NODE || node.getNodeType() == Node.CDATA_SECTION_NODE) {
+                builder.append(node.getNodeValue());
+            }
         }
+        return builder.toString().trim();
+    }
+
+    private String extractBase64FromPEM(String pem) {
+        return pem.replaceAll("-----BEGIN [^-]+-----", "")
+                  .replaceAll("-----END [^-]+-----", "")
+                  .replaceAll("[\\r\\n\\s]+", "");
     }
 
     private void showToast(int resId) {
@@ -331,29 +408,13 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
 
     private void clearKeybox() {
         try {
-            File file = new File(KEYBOX_PATH);
-            if (file.exists() && file.delete()) {
-                showToast(R.string.clear_success);
-                SystemRestartUtils.showSystemRestartDialog(getContext());
-            } else {
-                showToast(R.string.clear_failed);
-            }
+            Settings.System.putString(requireContext().getContentResolver(), "custom_keybox_data", null);
+            showToast(R.string.clear_success);
+            SystemRestartUtils.showSystemRestartDialog(getContext());
         } catch (Exception e) {
             Log.e(TAG, "Failed to clear keybox", e);
             showToast(R.string.clear_failed);
         }
-    }
-    
-    public static void reset(Context mContext) {
-        ContentResolver resolver = mContext.getContentResolver();
-        Settings.System.putIntForUser(resolver,
-                Settings.System.POCKET_JUDGE, 0, UserHandle.USER_CURRENT);
-        LineageSettings.System.putIntForUser(resolver,
-                LineageSettings.System.AUTO_BRIGHTNESS_ONE_SHOT, 0, UserHandle.USER_CURRENT);
-        SystemProperties.set(SYS_GAMES_SPOOF, "false");
-        SystemProperties.set(SYS_PHOTOS_SPOOF, "true");
-        SystemProperties.set(SYS_NETFLIX_SPOOF, "false");
-        SensorBlock.reset(mContext);
     }
 
     @Override
