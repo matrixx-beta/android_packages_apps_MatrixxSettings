@@ -30,8 +30,6 @@ import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import android.app.Activity;
 import android.app.AlertDialog; 
 
@@ -99,14 +97,6 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
 
     private Handler mHandler;
 
-   private final ActivityResultLauncher<String> mImportKeyboxLauncher = registerForActivityResult(
-            new ActivityResultContracts.GetContent(),
-            uri -> {
-                if (uri != null) {
-                    handleKeyboxImport(uri);
-                }
-            });
-
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -124,9 +114,24 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
 
         mImportKeybox = findPreference(KEY_IMPORT_KEYBOX);
         mImportKeybox.setOnPreferenceClickListener(preference -> {
-            mImportKeyboxLauncher.launch("text/xml");
+            openFileSelector(1003);
             return true;
         });
+
+        Preference convertKeybox = findPreference("convert_keybox");
+        if (convertKeybox != null) {
+            convertKeybox.setOnPreferenceClickListener(preference -> {
+                try {
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://axionaosp.github.io/#keybox"));
+                    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (browserIntent.resolveActivity(requireContext().getPackageManager()) != null) {
+                        startActivity(browserIntent);
+                    }
+                } catch (Exception e) {
+                }
+                return true;
+            });
+        }
 
         mPifJsonFilePreference = findPreference(KEY_PIF_JSON_FILE_PREFERENCE);
         mGamePropsJsonFilePreference = findPreference(KEY_GAME_PROPS_JSON_FILE_PREFERENCE);
@@ -164,8 +169,15 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
 }
 
    private void openFileSelector(int requestCode) {
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("application/json");
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        if (requestCode == 10001 || requestCode == 10002 ) {
+            intent.setType("application/json");
+        } else if (requestCode == 10003) {
+            intent.setType("text/xml");
+        } else {
+            intent.setType("*/*");
+        }
         startActivityForResult(intent, requestCode);
    }
 
@@ -179,7 +191,8 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
                     loadPifJson(uri);
                 } else if (requestCode == 10002) {
                     loadGameSpoofingJson(uri);
-                }
+                } else if (requestCode == 10003) {
+                    handleKeyboxImport(uri);
             }
         }
     }

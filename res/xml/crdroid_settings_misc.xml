@@ -51,6 +51,11 @@
     <PreferenceCategory
          android:title="@string/spoofing_category">
 
+       <Preference
+            android:key="convert_keybox"
+            android:title="@string/convert_keybox_title"
+            android:summary="@string/convert_keybox_summary" />
+
         <Preference
             android:key="import_keybox"
             android:title="@string/import_keybox_title"

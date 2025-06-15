@@ -157,4 +157,6 @@
     <string name="clear_keybox_summary">Disable keybox spoofing</string>
     <string name="clear_success">Keybox removed successfully. Disabling keybox spoofing</string>
     <string name="clear_failed">Failed to remove keybox</string>
+    <string name="convert_keybox_title">Convert Keybox</string>
+    <string name="convert_keybox_summary">Convert keybox for rom spoofing compatibility</string>
 </resources>
