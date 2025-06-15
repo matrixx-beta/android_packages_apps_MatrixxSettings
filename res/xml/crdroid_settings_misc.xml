@@ -51,6 +51,16 @@
     <PreferenceCategory
          android:title="@string/spoofing_category">
 
+        <Preference
+            android:key="import_keybox"
+            android:title="@string/import_keybox_title"
+            android:summary="@string/import_keybox_summary" />
+
+        <Preference
+            android:key="clear_keybox"
+            android:title="@string/clear_keybox_title"
+            android:summary="@string/clear_keybox_summary" />
+
     <!-- Google Play Integrity -->
     <com.crdroid.settings.preferences.SystemPropertySwitchPreference
         android:key="persist.sys.pixelprops.pi"
@@ -193,12 +203,12 @@
         android:defaultValue="0"
         android:summary="%s" />
 
-    <!-- <Preference
+    <Preference
          android:key="quickswitch"
          android:title="@string/quickswitch_launcher_title" 
          android:summary="@string/quickswitch_launcher_summary" 
          android:fragment="com.crdroid.settings.fragments.QuickSwitch"
-         android:enabled="@bool/quickswitch_enabled" /> -->    
+         android:enabled="@bool/quickswitch_enabled" /> 
 
     <!-- Sidebar -->
     <Preference

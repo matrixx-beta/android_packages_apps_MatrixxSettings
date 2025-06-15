@@ -28,6 +28,10 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.util.Log;
+import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import android.app.Activity;
 import android.app.AlertDialog; 
 
@@ -43,6 +47,10 @@ import com.android.settingslib.search.SearchIndexable;
 
 import com.crdroid.settings.fragments.misc.SensorBlock;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 
 import lineageos.providers.LineageSettings;
@@ -70,6 +78,10 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
     private static final String SYS_PHOTOS_SPOOF = "persist.sys.pixelprops.gphotos";
     private static final String SYS_NETFLIX_SPOOF = "persist.sys.pixelprops.netflix";
     
+    private static final String KEY_IMPORT_KEYBOX = "import_keybox";
+    private static final String KEY_CLEAR_KEYBOX = "clear_keybox";
+    private static final String KEYBOX_PATH = "/data/misc/keybox/keybox.xml";
+
     private static final String SYS_GAMEPROP_ENABLED = "persist.sys.gameprops.enabled";
     private static final String KEY_GAME_PROPS_JSON_FILE_PREFERENCE = "game_props_json_file_preference";
     private static final String KEY_PIF_JSON_FILE_PREFERENCE = "pif_json_file_preference";
@@ -77,12 +89,23 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
     private Preference mPocketJudge;
     private Preference mPropOptionsPi;
 
+    private Preference mImportKeybox;
+    private Preference mClearKeybox;
+
     private Preference mPifJsonFilePreference;
 
     private Preference mGamePropsJsonFilePreference;
     private Preference mGamePropsSpoof;
 
     private Handler mHandler;
+
+   private final ActivityResultLauncher<String> mImportKeyboxLauncher = registerForActivityResult(
+            new ActivityResultContracts.GetContent(),
+            uri -> {
+                if (uri != null) {
+                    handleKeyboxImport(uri);
+                }
+            });
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -92,6 +115,18 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
         mGamePropsSpoof = findPreference(SYS_GAMEPROP_ENABLED);
         final PreferenceScreen prefScreen = getPreferenceScreen();
         final Resources res = getResources();
+
+        mClearKeybox = findPreference(KEY_CLEAR_KEYBOX);
+        mClearKeybox.setOnPreferenceClickListener(preference -> {
+            clearKeybox();
+            return true;
+        });
+
+        mImportKeybox = findPreference(KEY_IMPORT_KEYBOX);
+        mImportKeybox.setOnPreferenceClickListener(preference -> {
+            mImportKeyboxLauncher.launch("text/xml");
+            return true;
+        });
 
         mPifJsonFilePreference = findPreference(KEY_PIF_JSON_FILE_PREFERENCE);
         mGamePropsJsonFilePreference = findPreference(KEY_GAME_PROPS_JSON_FILE_PREFERENCE);
@@ -259,6 +294,56 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
         return false;
     }
 
+    private void handleKeyboxImport(Uri uri) {
+        try (InputStream in = requireContext().getContentResolver().openInputStream(uri);
+             OutputStream out = new FileOutputStream(KEYBOX_PATH)) {
+            byte[] buf = new byte[1024];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+            setPermissions(KEYBOX_PATH);
+            showToast(R.string.import_success);
+            SystemRestartUtils.showSystemRestartDialog(getContext());
+        } catch (Exception e) {
+            Log.e(TAG, "Keybox import failed", e);
+            showToast(R.string.import_failed);
+        }
+    }
+
+    private void setPermissions(String path) {
+        try {
+            File file = new File(path);
+            file.setReadable(false, false);
+            file.setWritable(false, false);
+            file.setReadable(true, true);
+            file.setWritable(true, true);
+        } catch (Exception e) {
+            Log.e(TAG, "Permission set failed", e);
+        }
+    }
+
+    private void showToast(int resId) {
+        getActivity().runOnUiThread(() -> 
+            Toast.makeText(getContext(), resId, Toast.LENGTH_SHORT).show()
+        );
+    }
+
+    private void clearKeybox() {
+        try {
+            File file = new File(KEYBOX_PATH);
+            if (file.exists() && file.delete()) {
+                showToast(R.string.clear_success);
+                SystemRestartUtils.showSystemRestartDialog(getContext());
+            } else {
+                showToast(R.string.clear_failed);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to clear keybox", e);
+            showToast(R.string.clear_failed);
+        }
+    }
+    
     public static void reset(Context mContext) {
         ContentResolver resolver = mContext.getContentResolver();
         Settings.System.putIntForUser(resolver,
