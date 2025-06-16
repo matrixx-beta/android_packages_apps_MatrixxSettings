@@ -22,6 +22,7 @@ import android.os.Bundle;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
+import android.text.TextUtils;
 
 import androidx.preference.ListPreference;
 import android.content.Intent;
@@ -114,7 +115,7 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
 
         mImportKeybox = findPreference(KEY_IMPORT_KEYBOX);
         mImportKeybox.setOnPreferenceClickListener(preference -> {
-            openFileSelector(1003);
+            openFileSelector(10003);
             return true;
         });
 
@@ -196,6 +197,7 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
             }
         }
     }
+}
 
     private void showPropertiesDialog() {
         StringBuilder properties = new StringBuilder();
@@ -210,7 +212,11 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
                 "persist.sys.pihooks_MODEL",
                 "persist.sys.pihooks_PRODUCT",
                 "persist.sys.pihooks_SECURITY_PATCH",
-                "persist.sys.pihooks_DEVICE_INITIAL_SDK_INT"
+                "persist.sys.pihooks_DEVICE_INITIAL_SDK_INT",
+                "persist.sys.pihooks_TYPE",
+                "persist.sys.pihooks_TAG",
+                "persist.sys.pihooks_RELEASE",
+                "persist.sys.pihooks_DEBUG"
             };
             for (String key : keys) {
                 String value = SystemProperties.get(key, null);
