@@ -131,15 +131,6 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
         }
     }
     );
-        
-    @Override
-    public void onViewCreated(View view, Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        mKeyboxDataPreference = findPreference(KEYBOX_DATA_KEY);
-        if (mKeyboxDataPreference != null) {
-            mKeyboxDataPreference.setFilePickerLauncher(mKeyboxFilePickerLauncher);
-        }
-    }
      
         mPropOptionsPi = (Preference) findPreference(SYS_PROP_OPTIONS_PI);
         mPropOptionsPi.setOnPreferenceChangeListener(this);
@@ -149,6 +140,15 @@ public class Miscellaneous extends SettingsPreferenceFragment implements
                 com.android.internal.R.bool.config_pocketModeSupported);
         if (!mPocketJudgeSupported)
             prefScreen.removePreference(mPocketJudge);
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        mKeyboxDataPreference = findPreference(KEYBOX_DATA_KEY);
+        if (mKeyboxDataPreference != null) {
+            mKeyboxDataPreference.setFilePickerLauncher(mKeyboxFilePickerLauncher);
+        }
     }
 
     @Override
